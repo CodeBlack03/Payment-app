@@ -6,6 +6,10 @@ const PaymentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  description:{
+    type:String,
+    required: false
+  },
   amount: {
     type: Number,
     required: true
@@ -23,11 +27,22 @@ const PaymentSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
+  category:{
+    type:String,
+    enum: ['maintenance', 'NOC fund', 'other'],
+    required:true,
+  },
    user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
+  otherCategoryType: {
+    type: String,
+    required: function () {
+      return this.category === 'other';
+    }
+  }
 
 });
 

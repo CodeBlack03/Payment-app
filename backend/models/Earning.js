@@ -12,7 +12,19 @@ const EarningsSchema = new mongoose.Schema({
   date: {
     type: Date,
     default: Date.now
-  }
+  },
+  description:{ 
+    type: String,
+    required: true
+},
+category:{
+  type:String,
+  required:true
+},
+filePath:{ 
+type: String,
+}
+
 });
 
 module.exports = mongoose.model('Earnings', EarningsSchema);

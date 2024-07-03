@@ -4,6 +4,24 @@ const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const Expenditure = require('../models/Expenditure');
 const { check, validationResult } = require('express-validator');
+const multer  = require('multer');
+const advancedResults = require('../middleware/advancedResults');
+
+
+// Set up multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ storage: storage });
+
+
+
 
 // @route   POST api/expenditures
 // @desc    Add a new expenditure
@@ -11,8 +29,8 @@ const { check, validationResult } = require('express-validator');
 router.post(
   '/',
   [
-    auth,
-    admin,
+    [auth,
+    admin,upload.single('file')],
     [
       check('description', 'Description is required').not().isEmpty(),
       check('amount', 'Amount is required').isNumeric(),
@@ -27,13 +45,16 @@ router.post(
     }
 
     const { description, amount, category, date } = req.body;
+    let file;
+    if(req.file){file = `/uploads/${req.file.filename}`;}
 
     try {
       const expenditure = new Expenditure({
         description,
         amount,
         category,
-        date
+        date,
+        filePath: req.file ? file : null
       });
 
       await expenditure.save();
@@ -65,7 +86,9 @@ router.put(
     }
 
     const { description, amount, category, date } = req.body;
-    const expenditureFields = { description, amount, category, date };
+    let file;
+    if(req.file){file = `/uploads/${req.file.filename}`;}
+    const expenditureFields = { description, amount, category, date,filePath:file };
 
     try {
       let expenditure = await Expenditure.findById(req.params.id);
@@ -104,7 +127,7 @@ router.put(
 // @route    GET api/expenditures
 // @desc     Get expenditures for a particular month
 // @access   Private
-router.get('/', auth, async (req, res) => {
+router.get('/', auth,advancedResults(Expenditure), async (req, res) => {
   try {
     const { month, year } = req.query;
 
@@ -141,8 +164,71 @@ router.get('/', auth, async (req, res) => {
         }).sort({ date: -1 });
       }
     }
+    res.status(200).json(res.advancedResults)
+    //res.json(expenditures);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
 
-    res.json(expenditures);
+// DELETE method to delete an expenditure by ID
+router.delete('/expenditures/:id', auth, admin, async (req, res) => {
+  try {
+    const expenditure = await Expenditure.findById(req.params.id);
+
+    if (!expenditure) {
+      return res.status(404).json({ msg: 'Expenditure not found' });
+    }
+
+    //Delete associated file in 'uploads/' (if applicable)
+    if (expenditure.filePath) {
+      const filePath = path.join(__dirname, '..', expenditure.filePath);
+      fs.unlink(filePath, (err) => {
+        if (err) {
+          console.error(`Failed to delete file ${filePath}:`, err);
+        } else {
+          console.log(`File ${filePath} deleted successfully`);
+        }
+      });
+    }
+
+    await expenditure.remove();
+
+    res.json({ msg: 'Expenditure and associated file deleted' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Get a specific expenditure by ID
+router.get('/expenditures/:id', auth, async (req, res) => {
+  try {
+    const expenditure = await Expenditure.findById(req.params.id);
+
+    if (!expenditure) {
+      return res.status(404).json({ msg: 'Expenditure not found' });
+    }
+
+    res.json(expenditure);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// Download file associated with a specific expenditure
+router.get('/expenditures/:id/download', auth, async (req, res) => {
+  try {
+    const expenditure = await Expenditure.findById(req.params.id);
+
+    if (!expenditure || !expenditure.filePath) {
+      return res.status(404).json({ msg: 'File not found' });
+    }
+
+    const filePath = path.join(__dirname, '..', expenditure.filePath);
+    res.download(filePath);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');

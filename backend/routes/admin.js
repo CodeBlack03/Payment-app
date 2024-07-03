@@ -9,6 +9,7 @@ const sendSMS = require('../utils/sendSMS');
 const sendEmail = require('../utils/sendEmail')
 const TotalMoneyCollected = require('../models/TotalMoneyCollected');
 const Announcement = require('../models/Announcement');
+const advancedResults = require('../middleware/advancedResults');
 
 
 // Set up multer for file uploads
@@ -39,15 +40,55 @@ router.get('/', [auth,admin], async (req, res) => {
     res.status(500).send('Server error');
   }
 });
-router.get('/users',[ auth, admin], async (req, res) => {
+// GET route to fetch all users and populate their payments
+router.get('/users', [auth, admin,advancedResults(User,'payments')], async (req, res) => {
   try {
-    const users = await User.find().select('-password'); // Exclude the password field
-    res.json(users);
+    const users = await User.find().select('-password').populate('payments'); // Exclude the password field and populate 'payments'
+    res.status(200).json(res.advancedResults);
+    // res.json(users);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');
   }
 });
+
+// GET route to fetch all users and generate a CSV file for download
+router.get('/users/csv', [auth, admin], async (req, res) => {
+  try {
+    // Fetch all users from the database
+    const users = await User.find().select('-password').populate('payments'); // Exclude the password field and populate 'payments'
+
+    if (!users || users.length === 0) {
+      return res.status(404).json({ msg: 'No users found' });
+    }
+
+    // Convert users data to CSV format
+    const json2csvParser = new Parser({ fields: [ 'name', 'email', 'mobileNumber','houseNumber','houseType', 'dues', 'status'] });
+    const csvData = json2csvParser.parse(users.map(user => user.toJSON()));
+
+    // Create a unique file name for the CSV file
+    const fileName = `users_${Date.now()}.csv`;
+    const filePath = path.join(__dirname, '..', 'uploads', fileName);
+
+    // Write CSV data to a file
+    fs.writeFileSync(filePath, csvData);
+
+    // Send the CSV file as a download
+    res.download(filePath, fileName, (err) => {
+      if (err) {
+        console.error('Error downloading CSV file:', err);
+        res.status(500).send('Server error');
+      } else {
+        // Delete the CSV file after download completes
+        fs.unlinkSync(filePath);
+      }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
 
 
 
@@ -120,14 +161,19 @@ router.put('/payments/:id/approve', [auth,admin], async (req, res) => {
     const user = await User.findById(payment.user);
     user.dues -= payment.amount;
 
-    // Update the total money collected
-    let totalMoneyCollected = await TotalMoneyCollected.findOne();
-    if (!totalMoneyCollected) {
-      totalMoneyCollected = new TotalMoneyCollected();
+    // Update the total money collected only if payment category is 'maintenance'
+    if (payment.category === 'maintenance') {
+      let totalMoneyCollected = await TotalMoneyCollected.findOne();
+      if (!totalMoneyCollected) {
+        totalMoneyCollected = new TotalMoneyCollected();
+      }
+      totalMoneyCollected.totalAmount += payment.amount;
+      await totalMoneyCollected.save();
     }
 
-    totalMoneyCollected.totalAmount += payment.amount;
-    await totalMoneyCollected.save();
+
+
+    
     const message = 'Your payment for Rail Vihar maintenance has been approved.';
     await sendEmail(user.email,"Payment Approved",message);
     if (user.dues < 0) user.dues = 0;
@@ -265,5 +311,95 @@ router.post(
     }
   }
 );
+
+// GET route to fetch details of a particular user along with payments
+router.get('/users/:id', [auth, admin], async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Fetch user details and populate payments
+    const user = await User.findById(userId).populate('payments');
+
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// GET route to fetch payment details of a particular user
+router.get('users/:id/payments', auth, async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Fetch payments for the user ID
+    const payments = await Payment.find({ user: userId });
+
+    if (!payments || payments.length === 0) {
+      return res.status(404).json({ msg: 'No payments found for this user' });
+    }
+
+    res.json(payments);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// GET route to fetch JSON details of a payment
+router.get('/payments/:id', auth,admin, async (req, res) => {
+  try {
+    const paymentId = req.params.id;
+
+    // Fetch payment details
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({ msg: 'Payment not found' });
+    }
+
+    res.json(payment);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// GET route to download the file associated with a payment
+router.get('/payments/:id/download', auth,admin, async (req, res) => {
+  try {
+    const paymentId = req.params.id;
+
+    // Fetch payment details including screenshotURL
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({ msg: 'Payment not found' });
+    }
+
+    // Construct file path (assuming 'uploads/' directory)
+    const filePath = path.join(__dirname, '..', 'uploads', payment.screenshotURL);
+
+    // Check if the file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ msg: 'File not found' });
+    }
+
+    // Download the file
+    res.download(filePath, payment.screenshotURL, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        res.status(500).send('Server error');
+      }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
 
 module.exports = router;

@@ -7,6 +7,11 @@ const config = require('config');
 const auth = require('../middleware/auth');
 const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
+const fs = require('fs');
+const path = require('path');
+
+
+
 
 const signToken = (id) => {
   return jwt.sign({ id }, config.get("jwtPrivateKey"), {
@@ -42,7 +47,7 @@ const createSendToken = (status, user, req, res) => {
 // @route   POST api/users
 // @desc    Register a new user
 // @access  Public
-rrouter.post(
+router.post(
   '/register',
   [
     check('name', 'Name is required').not().isEmpty(),
@@ -186,6 +191,7 @@ router.get('/profile',auth, async (req, res) => {
         name: user.name,
         email: user.email,
         house_number : user.houseNumber,
+        house_Type: user.houseType,
         dues: user.dues,
         // Add other profile details as needed
       },
@@ -212,6 +218,60 @@ router.get('/payments', auth, async (req, res) => {
     res.status(500).send('Server error');
   }
 });
+
+// GET route to fetch JSON details of a payment
+router.get('/payments/:id', auth, async (req, res) => {
+  try {
+    const paymentId = req.params.id;
+
+    // Fetch payment details
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({ msg: 'Payment not found' });
+    }
+
+    res.json(payment);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// GET route to download the file associated with a payment
+router.get('/payments/:id/download', auth, async (req, res) => {
+  try {
+    const paymentId = req.params.id;
+
+    // Fetch payment details including screenshotURL
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({ msg: 'Payment not found' });
+    }
+
+    // Construct file path (assuming 'uploads/' directory)
+    const filePath = path.join(__dirname, '..', 'uploads', payment.screenshotURL);
+
+    // Check if the file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ msg: 'File not found' });
+    }
+
+    // Download the file
+    res.download(filePath, payment.screenshotURL, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        res.status(500).send('Server error');
+      }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+
 // @route   POST api/auth/forgot
 // @desc    Forgot Password - Send Reset Link
 // @access  Public
@@ -375,6 +435,48 @@ router.put(
     }
   }
 );
+
+// DELETE method to delete a user by ID
+router.delete('/users/:id', auth, admin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+
+    // Find all payments associated with the user
+    const payments = await Payment.find({ user: req.params.id });
+
+    // Delete each payment and associated files (if applicable)
+    for (let i = 0; i < payments.length; i++) {
+      const payment = payments[i];
+
+      // Check if the payment has a screenshotURL and delete the file
+      if (payment.screenshotURL) {
+        const filePath = path.join(__dirname, '..', payment.screenshotURL);
+        fs.unlink(filePath, (err) => {
+          if (err) {
+            console.error(`Failed to delete file ${filePath}:`, err);
+          } else {
+            console.log(`File ${filePath} deleted successfully`);
+          }
+        });
+      }
+
+      // Remove the payment document from the database
+      await payment.remove();
+    }
+
+    // Now remove the user
+    await user.remove();
+
+    res.json({ msg: 'User and associated payments deleted' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
 
 
 module.exports = router;

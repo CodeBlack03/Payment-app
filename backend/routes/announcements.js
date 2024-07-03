@@ -6,7 +6,7 @@ const Announcement = require('../models/Announcement');
 // @route   GET api/announcements
 // @desc    Get all announcements
 // @access  Private
-router.get('/', auth, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const announcements = await Announcement.find().sort({ createdAt: -1 });
     res.json(announcements);
@@ -19,7 +19,7 @@ router.get('/', auth, async (req, res) => {
 // @route   GET api/announcements/download/:filename
 // @desc    Download the announcement file
 // @access  Private
-router.get('/download/:filename', auth, (req, res) => {
+router.get('/download/:filename', (req, res) => {
   const filePath = path.join(__dirname, '../uploads', req.params.filename);
   res.download(filePath, (err) => {
     if (err) {

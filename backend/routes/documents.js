@@ -46,7 +46,7 @@ router.post('/', [auth, admin, upload.single('file')], async (req, res) => {
 // @route   GET api/documents
 // @desc    Get all documents
 // @access  Private
-router.get('/', auth, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const documents = await Document.find().sort({ uploadedAt: -1 });
     res.json(documents);
@@ -59,7 +59,7 @@ router.get('/', auth, async (req, res) => {
 // @route   GET api/documents/:id/download
 // @desc    Download a document
 // @access  Private
-router.get('/:id/download', auth, async (req, res) => {
+router.get('/:id/download',async (req, res) => {
   try {
     const document = await Document.findById(req.params.id);
 
