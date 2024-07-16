@@ -7,7 +7,6 @@ const User = require('../models/User')
 const Payment = require('../models/Payment')
 const Earning = require('../models/Earning')
 
-const sendSMS = require('../utils/sendSMS');
 const sendEmail = require('../utils/sendEmail')
 const TotalMoneyCollected = require('../models/TotalMoneyCollected');
 const Announcement = require('../models/Announcement');

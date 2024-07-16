@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const config = require('config'); // Using config module for configuration
 
 // MongoDB URI from configuration (you can set this in your environment variables or a separate config file)
-const dbURI = config.get('mongoURI');
+const dbURI = process.env.mongoURI
 let count = 1;
 let isConnectedBefore = false;
 

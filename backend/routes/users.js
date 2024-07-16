@@ -16,7 +16,7 @@ const advancedPayResults = require('../middleware/advancedPayResults');
 
 
 const signToken = (id) => {
-  return jwt.sign({ id }, config.get("jwtPrivateKey"), { expiresIn: '30d' });
+  return jwt.sign({ id }, process.env.jwtPrivateKey, { expiresIn: '30d' });
 };
 
 const createSendToken = (status, user, req, res) => {

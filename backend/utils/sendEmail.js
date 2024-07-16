@@ -22,9 +22,9 @@ const AWS = require('aws-sdk');
 const { Message } = require('twilio/lib/twiml/MessagingResponse');
 
 AWS.config.update({
-    accessKeyId: config.get('awsAccessKeyId'),
-    secretAccessKey: config.get('awsSecretAccessKey'),
-    region: config.get('awsRegion')
+    accessKeyId:process.env.awsAccessKeyId,
+    secretAccessKey: process.env.awsSecretAccessKey,
+    region: process.env.awsRegion
 })
 
 const ses = new AWS.SES({apiVersion:'2010-12-01'});

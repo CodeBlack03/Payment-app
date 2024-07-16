@@ -6,7 +6,6 @@ const auth = require('../middleware/auth');
 const Payment = require('../models/Payment');
 const Earning = require('../models/Earning')
 const User = require('../models/User');
-const sendSMS = require('../utils/sendSMS');
 const sendEmail = require('../utils/sendEmail')
 const fs = require('fs');
 const path = require('path');
