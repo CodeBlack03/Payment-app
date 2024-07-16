@@ -11,11 +11,16 @@ const AnnouncementSchema = new mongoose.Schema({
   },
   fileURL: {
     type: String,
-    required: true
+    required: false
   },
   createdAt: {
     type: Date,
-    default: Date.now,
+    
+    default: () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      return new Date(now.getTime() - (offset * 60 * 1000));
+    },
     expires: '30d' // Automatically delete the document after 30 days
   }
 });

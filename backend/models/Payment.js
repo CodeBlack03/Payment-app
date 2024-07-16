@@ -4,7 +4,7 @@ const PaymentSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
   },
   description:{
     type:String,
@@ -18,9 +18,13 @@ const PaymentSchema = new mongoose.Schema({
     type: String,
     required: false
   },
-  date: {
+ date: {
     type: Date,
-    default: Date.now
+    default: () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      return new Date(now.getTime() - (offset * 60 * 1000));
+    },
   },
   status: {
     type: String,

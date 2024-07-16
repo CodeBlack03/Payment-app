@@ -5,16 +5,22 @@ const admin = require('../middleware/admin');
 const Expenditure = require('../models/Expenditure');
 const { check, validationResult } = require('express-validator');
 const multer  = require('multer');
-const advancedResults = require('../middleware/advancedResults');
+const advancedExpResults = require('../middleware/advancedExpResults');
+const fs = require('fs');
+const path = require('path');
+const moment = require('moment-timezone');
 
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    cb(null, 'uploads/expenditures/');
   },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
+   filename: (req, file, cb) => {
+    const {category} = req.body
+    const nowIST = moment().tz('Asia/Kolkata').format('YYYY-MM-DD_HH-mm-ss');
+    const fileName = `${nowIST}${file.originalname.substring(file.originalname.lastIndexOf('.'))}`;
+    cb(null, fileName);
   }
 });
 
@@ -41,12 +47,12 @@ router.post(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array(), message:"You have not filled all the required fields" });
     }
 
     const { description, amount, category, date } = req.body;
     let file;
-    if(req.file){file = `/uploads/${req.file.filename}`;}
+    if(req.file){file = `/uploads/expenditures/${req.file.filename}`;}
 
     try {
       const expenditure = new Expenditure({
@@ -61,7 +67,7 @@ router.post(
       res.json(expenditure);
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message:`Server error: ${err.message}`});
     }
   }
 );
@@ -82,7 +88,7 @@ router.put(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array() , message: "You have not filled all the required fields"});
     }
 
     const { description, amount, category, date } = req.body;
@@ -94,7 +100,7 @@ router.put(
       let expenditure = await Expenditure.findById(req.params.id);
 
       if (!expenditure) {
-        return res.status(404).json({ msg: 'Expenditure not found' });
+        return res.status(404).json({ message: 'Expenditure not found' });
       }
 
       // Update the expenditure
@@ -107,7 +113,7 @@ router.put(
       res.json(expenditure);
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message:`Server error: ${err.message}`});
     }
   }
 );
@@ -127,58 +133,23 @@ router.put(
 // @route    GET api/expenditures
 // @desc     Get expenditures for a particular month
 // @access   Private
-router.get('/', auth,advancedResults(Expenditure), async (req, res) => {
+router.get('/', auth,advancedExpResults(Expenditure,null), async (req, res) => {
   try {
-    const { month, year } = req.query;
-
-    let expenditures;
-
-    if (month && year) {
-      // If month and year are provided, filter by month and year
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
-
-      expenditures = await Expenditure.find({
-        date: {
-          $gte: startDate,
-          $lte: endDate
-        }
-      }).sort({ date: -1 });
-    } else {
-      // If no month and year are provided, return the latest month expenditures
-      expenditures = await Expenditure.find().sort({ date: -1 });
-
-      if (expenditures.length > 0) {
-        const latestDate = expenditures[0].date;
-        const latestMonth = latestDate.getMonth();
-        const latestYear = latestDate.getFullYear();
-
-        const startDate = new Date(latestYear, latestMonth, 1);
-        const endDate = new Date(latestYear, latestMonth + 1, 0, 23, 59, 59, 999);
-
-        expenditures = await Expenditure.find({
-          date: {
-            $gte: startDate,
-            $lte: endDate
-          }
-        }).sort({ date: -1 });
-      }
-    }
     res.status(200).json(res.advancedResults)
     //res.json(expenditures);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message:`Server error: ${err.message}`});
   }
 });
 
 // DELETE method to delete an expenditure by ID
-router.delete('/expenditures/:id', auth, admin, async (req, res) => {
+router.delete('/:id', auth, admin, async (req, res) => {
   try {
     const expenditure = await Expenditure.findById(req.params.id);
 
     if (!expenditure) {
-      return res.status(404).json({ msg: 'Expenditure not found' });
+      return res.status(404).json({ message: 'Expenditure not found' });
     }
 
     //Delete associated file in 'uploads/' (if applicable)
@@ -186,52 +157,57 @@ router.delete('/expenditures/:id', auth, admin, async (req, res) => {
       const filePath = path.join(__dirname, '..', expenditure.filePath);
       fs.unlink(filePath, (err) => {
         if (err) {
-          console.error(`Failed to delete file ${filePath}:`, err);
+          res.status(400).json({message: `Failed to delete file ${filePath}:, error: ${err.message}`});
         } else {
-          console.log(`File ${filePath} deleted successfully`);
+          res.status(200).json({message: `File ${filePath} deleted successfully`});
         }
       });
     }
 
-    await expenditure.remove();
+    await Expenditure.deleteOne({_id:expenditure._id})
 
-    res.json({ msg: 'Expenditure and associated file deleted' });
+    res.json({ message: 'Expenditure and associated file deleted' });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message: `Server error: ${err.message}`});
   }
 });
 
 // Get a specific expenditure by ID
-router.get('/expenditures/:id', auth, async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
     const expenditure = await Expenditure.findById(req.params.id);
 
     if (!expenditure) {
-      return res.status(404).json({ msg: 'Expenditure not found' });
+      return res.status(404).json({ message: 'Expenditure not found' });
     }
 
     res.json(expenditure);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message: `Server error: ${err.message}`});
   }
 });
 
 // Download file associated with a specific expenditure
-router.get('/expenditures/:id/download', auth, async (req, res) => {
+router.get('/:id/download', auth,admin, async (req, res) => {
   try {
     const expenditure = await Expenditure.findById(req.params.id);
 
     if (!expenditure || !expenditure.filePath) {
-      return res.status(404).json({ msg: 'File not found' });
+      return res.status(404).json({ message: 'File not found' });
     }
-
     const filePath = path.join(__dirname, '..', expenditure.filePath);
-    res.download(filePath);
+    res.download(filePath, expenditure.filePath, (err) => {
+      if (err) {
+        console.error('Error downloading file:', err);
+        res.status(500).json({message: `Server error: ${err}`});
+      }
+    });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    
+    res.status(500).json({message: `Server error: ${err.message}`});
   }
 });
 

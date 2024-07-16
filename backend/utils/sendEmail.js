@@ -30,10 +30,13 @@ AWS.config.update({
 const ses = new AWS.SES({apiVersion:'2010-12-01'});
 
 const sendEmail = async (to, subject, text) => {
-  
+  console.log(to)
+  if(!Array.isArray(to)){
+    to = [to]
+  }
     const params = {
         Destination:{
-            ToAddress:to
+            ToAddresses:to
         },
         Message:{
             Body:{
@@ -45,7 +48,7 @@ const sendEmail = async (to, subject, text) => {
                 Data:subject
             }
         },
-        Source: 'jerry.sharma0312@gmail.com'
+        Source: 'harsh03121997@gmail.com'
         
     }
     ses.sendEmail(params,(err,data)=>{

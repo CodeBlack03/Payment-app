@@ -5,6 +5,11 @@ const cron = require('node-cron');
 const path = require('path');
 const accumulateDues = require('./scripts/accumulateDues');
 const app = express();
+const cors = require('cors');
+app.use(cors({
+  origin: "*",
+  credentials: true
+}));
 const connectDB = require('./config/db');
 // Bodyparser Middleware
 app.use(express.json());
@@ -26,10 +31,13 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/announcements',require('./routes/announcements'));
 app.use('/api/earnings', require('./routes/earnings'));
+app.use('/api/logout',require('./routes/logout'));
+
+// Allow requests from localhost:3000
 
 // Schedule the accumulateDues job to run on the first day of every month at midnight
 cron.schedule('0 0 1 * *', () => {
-  console.log('Running accumulateDues job...');
+  console.log('Scheduling accumulateDues job...');
   accumulateDues();
 });
 // Serve static assets in production

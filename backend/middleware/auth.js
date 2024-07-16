@@ -13,16 +13,19 @@ module.exports = async function(req, res, next) {
   }
   if (!token) {
     return next(
-      new AppError("You are not logged in! Please log in to get access.", 401)
+      res.status(401).json({message: "You are not logged in! Please log in to get access."})
     );
   }
- 
-  const decoded = jwt.verify(token, config.get('jwtPrivateKey'));
+ try {
+   const decoded = jwt.verify(token, config.get('jwtPrivateKey'));
   // console.log(decoded)
   req.user = decoded
   req.token = token
   //console.log(req)
   next();
+ } catch (error) {
+    res.status(401).json({ message: 'Token is not valid, Login Again' });
+ }
 };
 
 // module.exports = function(req, res, next) {
@@ -49,11 +52,11 @@ module.exports.isAdmin = async function(req, res, next) {
     const user = await User.findById(req.user.id);
 
     if (user.role !== 'admin') {
-      return res.status(403).json({ msg: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     next();
   } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
+    res.status(500).json({ message: `Server error ${err}` });
   }
 };

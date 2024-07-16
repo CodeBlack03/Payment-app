@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const EarningsSchema = new mongoose.Schema({
+  
   name: {
     type: String,
     required: true
@@ -11,7 +12,11 @@ const EarningsSchema = new mongoose.Schema({
   },
   date: {
     type: Date,
-    default: Date.now
+    default: () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      return new Date(now.getTime() - (offset * 60 * 1000));
+    },
   },
   description:{ 
     type: String,

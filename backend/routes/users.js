@@ -6,23 +6,23 @@ const { check, validationResult } = require('express-validator');
 const config = require('config');
 const auth = require('../middleware/auth');
 const User = require('../models/User');
+const Payment = require('../models/Payment')
 const sendEmail = require('../utils/sendEmail');
 const fs = require('fs');
 const path = require('path');
-
+const admin = require('../middleware/admin');
+const advancedPayResults = require('../middleware/advancedPayResults');
 
 
 
 const signToken = (id) => {
-  return jwt.sign({ id }, config.get("jwtPrivateKey"), {
-    expiresIn: config.get("jwtTokenExp"),
-  });
+  return jwt.sign({ id }, config.get("jwtPrivateKey"), { expiresIn: '30d' });
 };
 
 const createSendToken = (status, user, req, res) => {
   const token = signToken(user._id);
   const options = {
-    expiresIn: Date.now() * 30 * 24 * 60 * 60 * 1000,
+    expiresIn: Date.now() + (30 * 24 * 60 * 60 * 1000),
     httpOnly: true,
   };
   if (process.env.NODE_ENV === "production") {
@@ -53,37 +53,37 @@ router.post(
     check('name', 'Name is required').not().isEmpty(),
     check('houseNumber', 'House number is required').not().isEmpty(),
     check('email', 'Please include a valid email').isEmail(),
-    check('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
+    check('password', 'Please enter a password with 6 or more characters').isLength({ min: 3 }),
     check('houseType', 'House type is required').not().isEmpty(),
     check('mobileNumber', 'Mobile number is required').isLength({ min: 10, max: 10 }),
-    check('uniqueCode', 'Unique code is required').isLength({ min: 4, max: 4 })
+    check('accessCode', 'Unique code is required').isLength({ min: 4, max: 4 })
   ],
   async (req, res) => {
-    const { name, houseNumber, email, password, houseType, isAdmin, mobileNumber, uniqueCode } = req.body;
-
+    const { name, houseNumber, email, password, houseType, isAdmin, mobileNumber, accessCode } = req.body;
+    
     // Check if there are validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array(),message:"You have not filled all the required fields" });
     }
-
+    
     try {
       // Check if the unique code matches the last 4 digits of the mobile number
       const lastFourDigits = mobileNumber.slice(-4);
-      if (uniqueCode !== lastFourDigits) {
-        return res.status(400).json({ msg: 'Unique code does not match' });
+      if (accessCode !== lastFourDigits) {
+        return res.status(400).json({ message: 'Unique code does not match' });
       }
 
       // Check if user already exists
       let user = await User.findOne({ email });
       if (user) {
-        return res.status(400).json({ msg: 'User already exists' });
+        return res.status(400).json({ message: 'User already exists' });
       }
 
       // Check if houseType and houseNumber pair is unique
       user = await User.findOne({ houseType, houseNumber });
       if (user) {
-        return res.status(400).json({ msg: 'House type and house number pair already exists' });
+        return res.status(400).json({ message: 'House type and house number pair already exists' });
       }
 
       user = new User({
@@ -95,7 +95,7 @@ router.post(
         mobileNumber,
         isAdmin: isAdmin || false
       });
-
+      console.log("Register",user)
       // Encrypt password before saving
       // const salt = await bcrypt.genSalt(10);
       // user.password = await bcrypt.hash(password, salt);
@@ -112,7 +112,7 @@ router.post(
       createSendToken(201, user, req, res);
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message:`Server error: ${err.message}`});
     }
   }
 );
@@ -127,22 +127,24 @@ router.post('/auth',[
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array(),message:"You have not filled all the required fields" });
     }
   const {email,password} = req.body;
   
   try {
     console.log(email)
     const user = await User.findOne({ email });
+    console.log(user)
     if (!user) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
+      console.log("not user")
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
     if (user.status === 'inactive') {
-        return res.status(403).json({ msg: 'Your account is not active' });
+        return res.status(403).json({ message: 'Your account is not active' });
       }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
     console.log(user)
     const payload = {
@@ -154,7 +156,7 @@ router.post('/auth',[
     createSendToken(200,user,req,res);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message:`Server error: ${err.message}`});
   }
 });
 router.get('/profile',auth, async (req, res) => {
@@ -163,26 +165,26 @@ router.get('/profile',auth, async (req, res) => {
     
     const {email, password} = req.user
     
-    const user = await User.findOne({email});
-
+    const user = await User.findById(req.user.id);
+    console.log(user)
     // Calculate dues
     const currentDate = new Date();
     const duePayments = [];
 
-    for (let i = 0; i < 12; i++) {
-      const month = new Date(currentDate.getFullYear(), i);
-      const paymentForMonth = user.payments.find(payment => {
-        const paymentDate = new Date(payment.date);
-        return (
-          paymentDate.getMonth() === month.getMonth() &&
-          paymentDate.getFullYear() === month.getFullYear()
-        );
-      });
+    // for (let i = 0; i < 12; i++) {
+    //   const month = new Date(currentDate.getFullYear(), i);
+    //   const paymentForMonth = user.payments.find(payment => {
+    //     const paymentDate = new Date(payment.date);
+    //     return (
+    //       paymentDate.getMonth() === month.getMonth() &&
+    //       paymentDate.getFullYear() === month.getFullYear()
+    //     );
+    //   });
 
-      if (!paymentForMonth) {
-        duePayments.push(month.toLocaleString('default', { month: 'long' }));
-      }
-    }
+    //   if (!paymentForMonth) {
+    //     duePayments.push(month.toLocaleString('default', { month: 'long' }));
+    //   }
+    // }
    
     //Return user profile details and dues
     res.json({
@@ -190,32 +192,32 @@ router.get('/profile',auth, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        house_number : user.houseNumber,
-        house_Type: user.houseType,
+        mobileNumber: user.mobileNumber,
+        houseNumber : user.houseNumber,
+        houseType: user.houseType,
         dues: user.dues,
         // Add other profile details as needed
       },
-      dues: duePayments,
-
     });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({message: `Server Error: ${err.message}`});
   }
 });
 
-router.get('/payments', auth, async (req, res) => {
+router.get('/payments', auth,advancedPayResults(Payment,'user',null), async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate('payments');
-
     if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
+      return res.status(404).json({ message: 'User not found' });
     }
-    console.log(user)
-    res.json(user.payments);
+    // console.log("_______________________________________")
+    // console.log("Advanced Results",res.advancedResults)
+    // console.log("_______________________________________")
+    res.json(res.advancedResults);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message: `Server error: ${err.message}`});
   }
 });
 
@@ -228,13 +230,13 @@ router.get('/payments/:id', auth, async (req, res) => {
     const payment = await Payment.findById(paymentId);
 
     if (!payment) {
-      return res.status(404).json({ msg: 'Payment not found' });
+      return res.status(404).json({ message: 'Payment not found' });
     }
 
     res.json(payment);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message: `Server error: ${err.message}`});
   }
 });
 
@@ -247,27 +249,27 @@ router.get('/payments/:id/download', auth, async (req, res) => {
     const payment = await Payment.findById(paymentId);
 
     if (!payment) {
-      return res.status(404).json({ msg: 'Payment not found' });
+      return res.status(404).json({ message: 'Payment not found' });
     }
 
     // Construct file path (assuming 'uploads/' directory)
-    const filePath = path.join(__dirname, '..', 'uploads', payment.screenshotURL);
-
+    const filePath = path.join(__dirname, '..', '', payment.screenshotURL);
+    console.log("file Path",filePath)
     // Check if the file exists
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ msg: 'File not found' });
+      return res.status(404).json({ message: 'File not found' });
     }
 
     // Download the file
     res.download(filePath, payment.screenshotURL, (err) => {
       if (err) {
         console.error('Error downloading file:', err);
-        res.status(500).send('Server error');
+        res.status(500).json({message:`Server error: ${err.message}`});
       }
     });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message:`Server error: ${err.message}`});
   }
 });
 
@@ -276,12 +278,12 @@ router.get('/payments/:id/download', auth, async (req, res) => {
 // @desc    Forgot Password - Send Reset Link
 // @access  Public
 router.post(
-  '/forgot',
+  '/forgot-password',
   [check('email', 'Please include a valid email').isEmail()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array(),message:"You have not filled all the required details"});
     }
 
     const { email } = req.body;
@@ -290,20 +292,20 @@ router.post(
       const user = await User.findOne({ email });
 
       if (!user) {
-        return res.status(404).json({ msg: 'User not found' });
+        return res.status(404).json({ message: 'User not found' });
       }
 
       user.generatePasswordReset();
       await user.save();
 
-      const resetLink = `http://${req.headers.host}/api/users/reset/${user.resetPasswordToken}`;
+      const resetLink = `http://localhost:3000/reset/${user.resetPasswordToken}`;
 
       await sendEmail(user.email, 'Password Reset Request', `Please click the following link to reset your password: ${resetLink}`);
 
-      res.json({ msg: 'Password reset link sent to email' });
+      res.json({ message: 'Password reset link sent to email' });
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message:`Server error: ${err.message}`});
     }
   }
 );
@@ -318,15 +320,16 @@ router.post(
     check('confirmPassword', 'Confirm Password is required').not().isEmpty()
   ],
   async (req, res) => {
+    console.log(req.body)
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array(), message:"You have not filled all the required fields" });
     }
 
     const { password, confirmPassword } = req.body;
 
     if (password !== confirmPassword) {
-      return res.status(400).json({ msg: 'Passwords do not match' });
+      return res.status(400).json({ message: 'Passwords do not match' });
     }
 
     try {
@@ -334,21 +337,21 @@ router.post(
         resetPasswordToken: req.params.token,
         resetPasswordExpires: { $gt: Date.now() }
       });
-
+      console.log(user)
       if (!user) {
-        return res.status(400).json({ msg: 'Invalid or expired token' });
+        return res.status(400).json({ message: 'Invalid or expired token, please send token email again using forgot password' });
       }
 
-      user.password = await bcrypt.hash(password, 10);
+      
       user.resetPasswordToken = undefined;
       user.resetPasswordExpires = undefined;
 
       await user.save();
 
-      res.json({ msg: 'Password has been reset' });
+      res.json({ message: 'Password has been reset' });
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message:`Server error: ${err.message}`});
     }
   }
 );
@@ -362,37 +365,40 @@ router.post(
     auth,
     [
       check('oldPassword', 'Old Password is required').not().isEmpty(),
-      check('newPassword', 'New Password is required').not().isEmpty()
+      check('newPassword', 'New Password is required').not().isEmpty(),
+      check('confirmNewPassword', 'Confirm your new password').not().isEmpty()
     ]
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array() , message:"You have not filled all the required fields"});
     }
 
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, confirmNewPassword } = req.body;
 
     try {
       const user = await User.findById(req.user.id);
-
       const isMatch = await bcrypt.compare(oldPassword, user.password);
-
+      const salt = await bcrypt.genSalt(10);
+      const temp = await bcrypt.hash('123',salt);
+      console.log('temp: ',temp);
       if (!isMatch) {
-        return res.status(400).json({ msg: 'Incorrect old password' });
+        return res.status(400).json({ message: 'Incorrect old password' });
       }
-
-      user.password = await bcrypt.hash(newPassword, 10);
-
+      if(newPassword!==confirmNewPassword){
+        return res.status(400).json({message:"New Passwords doesn't Match"})
+      }
+      user.password = newPassword;
       await user.save();
-
-      res.json({ msg: 'Password has been changed' });
+      res.json({ message: 'Password has been changed' });
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message:`Server error: ${err.message}`});
     }
   }
 );
+
 // @route   PUT api/users/profile
 // @desc    Update user profile
 // @access  Private
@@ -409,42 +415,44 @@ router.put(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array(), message:"You have not filled all the required fields" });
     }
 
-    const { name, email, mobileNumber } = req.body;
+    const { name, email, mobileNumber,houseNumber,houseType } = req.body;
 
     try {
       let user = await User.findById(req.user.id);
 
       if (!user) {
-        return res.status(404).json({ msg: 'User not found' });
+        return res.status(404).json({ message: 'User not found' });
       }
 
       // Update user details
       user.name = name;
       user.email = email;
       user.mobileNumber = mobileNumber;
+      user.houseNumber = houseNumber;
+      user.houseType = houseType;
 
       await user.save();
 
       res.json(user);
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server error');
+      res.status(500).json({message: `Server error: ${err.message}`});
     }
   }
 );
 
 // DELETE method to delete a user by ID
-router.delete('/users/:id', auth, admin, async (req, res) => {
+router.delete('/:id', auth, admin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
 
     if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
+      return res.status(404).json({ message: 'User not found' });
     }
-
+    //console.log(user)
     // Find all payments associated with the user
     const payments = await Payment.find({ user: req.params.id });
 
@@ -457,24 +465,26 @@ router.delete('/users/:id', auth, admin, async (req, res) => {
         const filePath = path.join(__dirname, '..', payment.screenshotURL);
         fs.unlink(filePath, (err) => {
           if (err) {
-            console.error(`Failed to delete file ${filePath}:`, err);
+            console.log("Failed to delete file ${filePath}:", err)
+            // return res.status(400).json({message: `Failed to delete file ${filePath}: ${err.message}`});
           } else {
-            console.log(`File ${filePath} deleted successfully`);
+            console.log(`File ${filePath} deleted successfully`)
+            // res.status(400).json({message: `File ${filePath} deleted successfully`});
           }
         });
       }
-
+      console.log(payment)
       // Remove the payment document from the database
-      await payment.remove();
+      await Payment.deleteOne({ _id: payment._id });
     }
 
     // Now remove the user
-    await user.remove();
+    await User.deleteOne({ _id: user._id });
 
-    res.json({ msg: 'User and associated payments deleted' });
+    res.json({ message: 'User and associated payments deleted' });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({message:`Server error: ${err.message}`});
   }
 });
 

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "start": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd backend && npm start",
+    "server": "cd backend && nodemon app.js",
     "client": "cd frontend && npm start",
-    "backend": "node backend/app.js",
+    "backend": "nodemon backend/app.js",
     "frontend": "react-scripts start"
   },
   "dependencies": {
@@ -17,6 +17,7 @@
     "reactstrap": "^9.2.2"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.1.4"
   }
 }

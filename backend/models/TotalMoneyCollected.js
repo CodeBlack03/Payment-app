@@ -8,7 +8,13 @@ const TotalMoneyCollectedSchema = new mongoose.Schema({
   },
    updatedAt: {
     type: Date,
-    default: Date.now
+   
+    default: () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      return new Date(now.getTime() - (offset * 60 * 1000));
+    },
+  
   }
 });
 
