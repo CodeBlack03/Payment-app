@@ -48,7 +48,7 @@ const sendEmail = async (to, subject, text) => {
                 Data:subject
             }
         },
-        Source: 'harsh03121997@gmail.com'
+        Source: 'railviharmtc@gmail.com'
         
     }
     ses.sendEmail(params,(err,data)=>{
