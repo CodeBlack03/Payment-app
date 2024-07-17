@@ -17,8 +17,9 @@ module.exports = async function(req, res, next) {
     );
   }
  try {
-  console.log(process.env.jwtPrivatekey)
-   const decoded = jwt.verify(token,process.env.jwtPrivatekey);
+  console.log(token)
+  console.log(process.env.jwtPrivateKey)
+   const decoded = jwt.verify(token,process.env.jwtPrivateKey);
   // console.log(decoded)
   req.user = decoded
   req.token = token

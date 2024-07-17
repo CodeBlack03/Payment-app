@@ -115,7 +115,7 @@ router.delete('/:id', [auth, admin], async (req, res) => {
     }
 
     // Delete associated file in 'uploads/'
-    const filePath = path.join(__dirname, '..', document.fileURL);
+    const filePath = path.join(__dirname, '..', document.filePath);
     await fs.remove(filePath);
 
     await Document.deleteOne({_id:document._id})

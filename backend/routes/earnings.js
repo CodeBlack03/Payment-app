@@ -122,7 +122,7 @@ router.put(
   }
 );
 // Get all earnings
-router.get('/', auth,admin,advancedExpResults(Earning,null), async (req, res) => {
+router.get('/', auth,advancedExpResults(Earning,null), async (req, res) => {
   try {
     const earnings = await Earnings.find();
     res.status(200).json(res.advancedResults);

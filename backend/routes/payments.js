@@ -144,9 +144,9 @@ router.delete('/:id', auth, admin, async (req, res) => {
       const filePath = path.join(__dirname, '..', payment.screenshotURL);
       fs.unlink(filePath, (err) => {
         if (err) {
-          res.status(400).json({message:`Failed to delete file ${filePath},  error message: ${err.message}`});
+          console.log({message:`Failed to delete file ${filePath},  error message: ${err.message}`});
         } else {
-          res.status(200).json({message:`File ${filePath} deleted successfully`});
+          console.log({message:`File ${filePath} deleted successfully`});
         }
       });
     }
