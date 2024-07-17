@@ -158,8 +158,9 @@ router.get('/:id/download', auth,admin, async (req, res) => {
     if (!earnings || !earnings.filePath) {
       return res.status(404).json({ message: 'File not found' });
     }
-
+    console.log(earnings)
     const filePath = path.join(__dirname, '..', earnings.filePath);
+    console.log("File Path",earnings.filePath)
     res.download(filePath, earnings.filePath, (err) => {
       if (err) {
         console.error('Error downloading file:', err);
