@@ -9,7 +9,8 @@ const multer = require('multer');
 const advancedExpResults = require('../middleware/advancedExpResults');
 const Earning = require('../models/Earning');
 const moment = require('moment-timezone');
-
+const fs = require('fs-extra');
+const path = require('path');
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({

@@ -198,7 +198,7 @@ router.put('/payments/:id/approve', [auth,admin], async (req, res) => {
         description: payment.description,
         amount: payment.amount,
         date: payment.createdAt,
-        fileURL: payment.screenshotURL,
+        filePath: payment.screenshotURL,
       };
 
       const newEarning = new Earning(newEarningData);
