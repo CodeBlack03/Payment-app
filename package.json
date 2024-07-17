@@ -7,7 +7,7 @@
     "client": "cd frontend && npm start",
     "backend": "node backend/app.js",
     "frontend": "react-scripts start",
-    "build": "webpack --config webpack.config.js",
+    "build": "webpack --config webpack.config.js"
   },
   "dependencies": {
     "express": "^4.17.2",
