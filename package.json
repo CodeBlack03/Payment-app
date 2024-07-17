@@ -2,7 +2,7 @@
   "name": "my-app",
   "version": "1.0.0",
   "scripts": {
-    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "start": "npm run server",
     "server": "cd backend && nodemon app.js",
     "client": "cd frontend && npm start",
     "backend": "nodemon backend/app.js",
