@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "npm run server",
-    "server": "cd backend && nodemon app.js",
+    "server": "cd backend && node app.js",
     "client": "cd frontend && npm start",
     "backend": "node backend/app.js",
     "frontend": "react-scripts start"
