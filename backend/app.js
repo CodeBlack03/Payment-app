@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 
 const mongoose = require('mongoose');
-const config = require('config');
+// const config = require('config');
 const cron = require('node-cron');
 const path = require('path');
 const accumulateDues = require('./scripts/accumulateDues');
