@@ -10,3 +10,4 @@ region: process.env.awsRegion
 // Create a new instance of the S3 service
 const s3 = new AWS.S3();
 
+export default s3;

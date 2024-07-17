@@ -17,7 +17,7 @@ const { Parser } = require('json2csv');
 const fs = require('fs');
 const path = require('path');
 const moment = require('moment-timezone');
-const s3 = require('../utils/s3')
+
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({
@@ -32,6 +32,9 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+
+
 
 
 // @route    GET api/admin
@@ -195,7 +198,7 @@ router.put('/payments/:id/approve', [auth,admin], async (req, res) => {
         description: payment.description,
         amount: payment.amount,
         date: payment.createdAt,
-        filePath: payment.screenshotURL,
+        fileURL: payment.screenshotURL,
       };
 
       const newEarning = new Earning(newEarningData);
